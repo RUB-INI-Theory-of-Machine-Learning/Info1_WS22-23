@@ -1,0 +1,51 @@
+# This determines the block size. For now this is the size of the middle piece of the block
+var block_size = canvas.width()/10;
+
+# This is the size of the outlines. The outlines are the darker and lighter edges of the block
+var outline_size = block_size/10;
+
+# We initialize the variable pos_x such that it is available in the while loop
+var pos_x = 0;
+
+# This prompts the user to input values for pos_x and pos_y.
+# Those variable represent the vertical and horizontal position of the block
+while true do {
+    # The user is prompted for the horizontal position of the block. We multiply by the block_size
+    # to translate from the row/column to the actual pixel value for the canvas.
+	pos_x = Integer(prompt("Geben Sie die horizontale Spielfeldreihe an")) * block_size;
+
+	# This checks if the value entered for pos_x is reasonable (smaller than 10 * block_size, larger or equal to 0)
+	if(pos_x < 10 * block_size and pos_x >= 0) then break;
+}
+var pos_y = Integer(prompt("Geben Sie die vertikale Spielfeldreihe an")) * block_size;
+
+# This loop drops the tetromino block. Each iteration we reset the canvas and
+# then draw the tetromino block at a lower row.
+while pos_y < 10 * block_size do {
+    # We reset the canvas to redraw it right after
+	canvas.setFillColor(1,1,1);
+	canvas.clear();
+
+    # Draw the block
+	# lighter edges
+	canvas.setFillColor(255/255, 255/255, 0);
+	canvas.fillRect(pos_x - outline_size, pos_y, outline_size, block_size+outline_size);
+	canvas.fillRect(pos_x - outline_size, pos_y-outline_size, block_size+outline_size, outline_size);
+
+	# darker edges
+	canvas.setFillColor(153/255, 153/255, 0);
+	canvas.fillRect(pos_x + block_size, pos_y -outline_size, outline_size, block_size + outline_size);
+	canvas.fillRect(pos_x, pos_y + block_size, block_size+ outline_size, outline_size);
+
+	# middle piece
+	canvas.setFillColor(204/255, 204/255, 0);
+	canvas.fillRect(pos_x, pos_y, block_size, block_size);
+
+    # To move the piece we change pos_y. This creates the illusion of falling.
+	pos_y += block_size;
+
+	# We halt the program such that the tetromino is visible for some time.
+	wait(1000);
+}
+
+
