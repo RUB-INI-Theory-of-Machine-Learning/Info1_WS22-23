@@ -1,3 +1,7 @@
+# This defines the playfield size in blocks
+var blocks_y = 20;
+var blocks_x = 10;
+
 
 # This determines the block size. Since we want the tetris field to be of size 10x20.
 # We calculate the vertical block size and the horizontal and take the minimum. This way
@@ -7,67 +11,113 @@ var block_size = math.min(canvas.width()/10, canvas.height()/20);
 # This is the size of the outlines. The outlines are the darker and lighter edges of the block
 var outline_size = block_size/10;
 
+# In this dictionary the shape of the tetrominos is defined. For every tetromino we save all
+# possible rotations.
+var tetromino = {
+	"o": [[
+		["o","o"],
+		["o","o"]
+		]],
+	"t":[
+            # The first rotation of the tetromino
+            [
+                [ 0,  0,  0 ], # the first row
+                ["t","t","t"], # the second row
+                [ 0, "t", 0 ]  # the third row
+            ],
+            # The other three rotations
+            [[0,"t",0],["t","t",0],[0,"t",0]],
+            [[0,"t",0],["t","t","t"],[0,0,0]],
+            [[0,"t",0],[0,"t","t"],[0,"t",0]]
+        ],
+};
+
 # This is the color dictionary that defines all the colors used.
 var colors = {
-	"yellow": {
+	"o": { #yellow
 		"base": [204, 204, 0],
 		"light": [255, 255, 0],
 		"dark": [153, 153, 0]
 	}
 };
 
-# We initialize the variable pos_x such that it is available in the while loop
-var pos_x = 0;
-
-# This prompts the user to input values for pos_x and pos_y.
-# Those variable represent the vertical and horizontal position of the block
-while true do {
-    # The user is prompted for the horizontal position of the block. We multiply by the block_size
-    # to translate from the row/column to the actual pixel value for the canvas.
-	pos_x = Integer(prompt("Geben Sie die horizontale Spielfeldreihe an"));
-
-	# This checks if the value entered for pos_x is reasonable (smaller than 10 * block_size, larger or equal to 0)
-	if(pos_x < 10 and pos_x >= 0) then break;
-}
-var pos_y = Integer(prompt("Geben Sie die vertikale Spielfeldreihe an"));
 
 # This is the function that draws the block for us. It takes pos_x and pos_y as arguments. Both are in the unit
 # of blocks, as the conversion to pixels only happens in this function. The blocks gets drawn as two triangles
-with lighter and darker color. The middle square is then drawn on top of it.
-function draw_block(pos_x, pos_y, color){
+# with lighter and darker color. The middle square is then drawn on top of it.
+function draw_block(column, row, type){
     # Convert blocks to pixels
-	pos_x = pos_x * block_size;
-	pos_y = pos_y * block_size;
+	var pos_x = column * block_size;
+	var pos_y = row * block_size;
 
 	# lighter edges
-	canvas.setFillColor(colors[color]["light"][0]/255, colors[color]["light"][1]/255, colors[color]["light"][2]/255);
-	canvas.fillArea([[pos_x, pos_y],[pos_x, pos_y + block_size],[pos_x+block_size, pos_y]]);
+    	canvas.setFillColor(colors[type]["light"][0]/255, colors[type]["light"][1]/255, colors[type]["light"][2]/255);
+    	canvas.fillArea([[pos_x, pos_y],[pos_x, pos_y + block_size],[pos_x+block_size, pos_y]]);
 
-	# darker edges
-	canvas.setFillColor(colors[color]["dark"][0]/255, colors[color]["dark"][1]/255, colors[color]["dark"][2]/255);
-    canvas.fillArea([[pos_x+block_size, pos_y+block_size],[pos_x, pos_y + block_size],[pos_x+block_size, pos_y]]);
+    	# darker edges
+    	canvas.setFillColor(colors[type]["dark"][0]/255, colors[type]["dark"][1]/255, colors[type]["dark"][2]/255);
+        canvas.fillArea([[pos_x+block_size, pos_y+block_size],[pos_x, pos_y + block_size],[pos_x+block_size, pos_y]]);
 
-	# middle piece
-	canvas.setFillColor(colors[color]["base"][0]/255, colors[color]["base"][1]/255, colors[color]["base"][2]/255);
-	canvas.fillRect(pos_x+outline_size, pos_y+outline_size, block_size - 2* outline_size, block_size - 2*outline_size);
+    	# middle piece
+    	canvas.setFillColor(colors[type]["base"][0]/255, colors[type]["base"][1]/255, colors[type]["base"][2]/255);
+    	canvas.fillRect(pos_x+outline_size, pos_y+outline_size, block_size - 2* outline_size, block_size - 2*outline_size);
+}
+
+# This is a basic function to insert a tetromino into the playfield
+function insert_tetromino(playfield, type, rotation, column, row){
+	var tetromino_ = tetromino[type][rotation];
+
+	for var i in 0:tetromino_.size() do {
+		for var j in 0:tetromino_[i].size() do {
+		    if(tetromino_[i][j] != 0) then playfield[row+i][column + j] = tetromino_[i][j];
+		}
+	}
+
+	# This is an alternative version to achieve the same result
+    # 	for var i in column:(column + tetromino[type][rotation][0].size()) do
+    # 		for var j in row:(row + tetromino[type][rotation].size()) do
+    #           if(tetromino_[i-column][j-row] != 0) then playfield[i][j] = tetromino_[i-column][j-row];
 
 }
 
+# This is a basic function to remove a tetromino from the playfield
+function remove_tetromino(playfield, type, rotation, column, row){
+	var tetromino_ = tetromino[type][rotation];
+
+	for var i in 0:tetromino_.size() do {
+		for var j in 0:tetromino_[i].size() do {
+		    if(tetromino_[i][j] != 0) then playfield[row+i][column + j] = 0;
+		}
+	}
+}
+
+# The playfield array holds the gamestate. It is a nested array where
+# the inner arrays hold the rows of the playfield. Empty blocks are encoded by '0' (as an integer),
+# while the blocks from the tetrominos are encoded by their name ('o', 't', etc...).
+var playfield = [];
+
+# Init the playfield
+for 0:blocks_y do {
+	var row = [];
+	for 0:blocks_x do row.push(0);
+	playfield.push(row);
+}
 
 # This loop drops the square tetromino. Each iteration we reset the canvas and
 # then draw the tetromino block at a lower row.
-while pos_y < 20 do {
+for var i in 0:20 do {
 	canvas.setFillColor(0,0,0);
 	canvas.clear();
 
-	# Draw the square tetromino
-	draw_block(pos_x, pos_y, "yellow");
-	draw_block(pos_x+1, pos_y+1, "yellow");
-	draw_block(pos_x+1, pos_y, "yellow");
-	draw_block(pos_x, pos_y+1, "yellow");
+	insert_tetromino(playfield, "o", 0, 4, i);
 
-	pos_y += 1;
+	# draw the entire playfield
+	for var i in 0:playfield.size() do
+		for var j in 0:playfield[i].size() do
+			if(playfield[i][j] != 0) then draw_block(j, i, playfield[i][j]);
+
 	wait(1000);
+
+    # remove the tetromino so in the next iteration we can insert the tetromino with a different position
+	remove_tetromino(playfield, "o", 0, 4, i);
 }
-
-
