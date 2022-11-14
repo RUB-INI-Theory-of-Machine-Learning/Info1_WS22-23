@@ -2,11 +2,13 @@
 var blocks_y = 20;
 var blocks_x = 10;
 
+# This defines the sizes of the playfield frame in blocks
+var frame = 1;
 
 # This determines the block size. Since we want the tetris field to be of size 10x20.
 # We calculate the vertical block size and the horizontal and take the minimum. This way
 # we can guarantee that the playfield is always completely visible.
-var block_size = math.min(canvas.width()/10, canvas.height()/20);
+var block_size = math.min(canvas.width()/(blocks_x + 2 * frame), canvas.height()/(blocks_y + 2 * frame));
 
 # This is the size of the outlines. The outlines are the darker and lighter edges of the block
 var outline_size = block_size/10;
@@ -15,8 +17,10 @@ var outline_size = block_size/10;
 # possible rotations.
 var tetromino = {
 	"o": [[
-		["o","o"],
-		["o","o"]
+		[0,0,0,0],
+    	[0,"o","o",0],
+    	[0,"o","o",0],
+    	[0,0,0,0]
 		]],
 	"t":[
             # The first rotation of the tetromino
@@ -84,9 +88,9 @@ var colors = {
         "dark": [153, 0, 0],
     },
 	"j": {
-	    "base": [204, 0, 0],
-        "light": [255, 0, 0],
-        "dark": [153, 0, 0],
+	    "base": [0, 0, 204],
+        "light": [0, 0, 255],
+        "dark": [0, 0, 153],
 	},
 	"l": {
 	    "base": [204, 102, 0],
@@ -150,21 +154,69 @@ function remove_tetromino(playfield, type, rotation, column, row){
 	}
 }
 
+# This function is given a tetromino and returns true if the tetromino has a
+# collision with some block on the field.
+function check_collision(playfield, type, rotation, column, row){
+	var tetromino_ = tetromino[type][rotation];
+
+	for var i in 0:tetromino_.size() do {
+		for var j in 0:tetromino_[i].size() do {
+			if (tetromino_[i][j] != 0 and playfield[row+i][column+j] != 0) then {
+			  return true;
+			}
+		}
+	}
+	return false;
+}
+
+# This function pushes a complete row of "f" blocks to the playfield.
+function draw_frame_row(playfield){
+	var row = [];
+	for 0:(blocks_x + 2 * frame) do row.push("f");
+	playfield.push(row);
+
+	return playfield;
+}
+
 # The playfield array holds the gamestate. It is a nested array where
 # the inner arrays hold the rows of the playfield. Empty blocks are encoded by '0' (as an integer),
 # while the blocks from the tetrominos are encoded by their name ('o', 't', etc...).
+
 var playfield = [];
 
 # Init the playfield
+for 0:frame do draw_frame_row(playfield);
 for 0:blocks_y do {
 	var row = [];
+	for 0:frame do row.push("f");
 	for 0:blocks_x do row.push(0);
+	for 0:frame do row.push("f");
 	playfield.push(row);
 }
+for 0:frame do draw_frame_row(playfield);
+
+function is_in_array(haystack, needle){
+	for var i in haystack do {
+		if i == needle then return true;
+	}
+	return false;
+}
+
+# This is the function that return an array with all tetrominos randomly shuffled
+function fill_random_array(){
+	var rand_array = [];
+
+	while rand_array.size() < tetromino.size() do {
+		var random_tetromino = tetromino.keys()[Integer(math.floor(math.random() * tetromino.size()))];
+		if not is_in_array(rand_array, random_tetromino) then rand_array.push(random_tetromino);
+	}
+	return rand_array;
+};
 
 # This loop drops the square tetromino. Each iteration we reset the canvas and
 # then draw the tetromino block at a lower row.
-for var i in 0:20 do {
+var i = 1;
+while true do {
 	canvas.setFillColor(0,0,0);
 	canvas.clear();
 
@@ -177,6 +229,14 @@ for var i in 0:20 do {
 
 	wait(1000);
 
-    # remove the tetromino so in the next iteration we can insert the tetromino with a different position
+    # Remove the tetromino so in the next iteration we can insert the tetromino with a different position
 	remove_tetromino(playfield, "o", 0, 4, i);
+
+   # Since the loop runs indefinitely we break free from it once we detect a collision
+	if check_collision(playfield, "o", 0, 4, i+1) == true then{
+    		insert_tetromino(playfield, "o", 0, 4, i);
+    	 	break;
+    	}
+
+    i += 1;
 }
