@@ -15,7 +15,7 @@ var outline_size = block_size/10;
 
 # In this dictionary the shape of the tetrominos is defined. For every tetromino we save all
 # possible rotations.
-var tetromino = {
+var tetromino_bitmaps = {
 	"o": [[
 		[0,0,0,0],
     	[0,"o","o",0],
@@ -105,6 +105,31 @@ var colors = {
 };
 
 
+# This is the tetromino class that bundles the information (type, rotation, column, row) about a tetromino.
+# It also serves as a place where we can store additional information about the tetromino (maximum number of rotations).
+# Furthermore we have a place for code that calculates results that are specific to an individual tetromino (the column
+# that places it in the middle of the playfield).
+class Tetromino {
+public:
+	var rotation, type, column, row;
+	var max_rotations;
+
+	constructor(type, rotation=0, column="middle", row=0){
+		this.type = type;
+		this.rotation = rotation;
+
+		this.row = row + frame;
+		if (column == "middle") then {
+			this.column = frame + Integer(math.floor(blocks_x/2) - math.ceil(tetromino_bitmaps[type][rotation][0].size()/2));
+		}
+		else this.column = column;
+
+		this.max_rotations = tetromino_bitmaps[type].size();
+	}
+}
+
+
+
 # This is the function that draws the block for us. It takes pos_x and pos_y as arguments. Both are in the unit
 # of blocks, as the conversion to pixels only happens in this function. The blocks gets drawn as two triangles
 # with lighter and darker color. The middle square is then drawn on top of it.
@@ -127,12 +152,12 @@ function draw_block(column, row, type){
 }
 
 # This is a basic function to insert a tetromino into the playfield
-function insert_tetromino(playfield, type, rotation, column, row){
-	var tetromino_ = tetromino[type][rotation];
+function insert_tetromino(playfield,tetromino){
+	var tetromino_ = tetromino_bitmaps[tetromino.type][tetromino.rotation];
 
 	for var i in 0:tetromino_.size() do {
 		for var j in 0:tetromino_[i].size() do {
-		    if(tetromino_[i][j] != 0) then playfield[row+i][column + j] = tetromino_[i][j];
+		    if(tetromino_[i][j] != 0) then playfield[tetromino.row+i][tetromino.column + j] = tetromino_[i][j];
 		}
 	}
 
@@ -144,24 +169,24 @@ function insert_tetromino(playfield, type, rotation, column, row){
 }
 
 # This is a basic function to remove a tetromino from the playfield
-function remove_tetromino(playfield, type, rotation, column, row){
-	var tetromino_ = tetromino[type][rotation];
+function remove_tetromino(playfield, tetromino){
+	var tetromino_ = tetromino_bitmaps[tetromino.type][tetromino.rotation];
 
 	for var i in 0:tetromino_.size() do {
 		for var j in 0:tetromino_[i].size() do {
-		    if(tetromino_[i][j] != 0) then playfield[row+i][column + j] = 0;
+		    if(tetromino_[i][j] != 0) then playfield[tetromino.row+i][tetromino.column + j] = 0;
 		}
 	}
 }
 
 # This function is given a tetromino and returns true if the tetromino has a
 # collision with some block on the field.
-function check_collision(playfield, type, rotation, column, row){
-	var tetromino_ = tetromino[type][rotation];
+function check_collision(playfield, tetromino){
+	var tetromino_ = tetromino_bitmaps[tetromino.type][tetromino.rotation];
 
 	for var i in 0:tetromino_.size() do {
 		for var j in 0:tetromino_[i].size() do {
-			if (tetromino_[i][j] != 0 and playfield[row+i][column+j] != 0) then {
+			if (tetromino_[i][j] != 0 and playfield[tetromino.row+i][tetromino.column+j] != 0) then {
 			  return true;
 			}
 		}
@@ -206,37 +231,95 @@ function is_in_array(haystack, needle){
 function fill_random_array(){
 	var rand_array = [];
 
-	while rand_array.size() < tetromino.size() do {
-		var random_tetromino = tetromino.keys()[Integer(math.floor(math.random() * tetromino.size()))];
+	while rand_array.size() < tetromino_bitmaps.size() do {
+		var random_tetromino = tetromino_bitmaps.keys()[Integer(math.floor(math.random() * tetromino_bitmaps.size()))];
+
 		if not is_in_array(rand_array, random_tetromino) then rand_array.push(random_tetromino);
+
 	}
 	return rand_array;
 };
 
-# This loop drops the square tetromino. Each iteration we reset the canvas and
-# then draw the tetromino block at a lower row.
-var i = 1;
-while true do {
+# In order to treat the playfield and the tetromino as separate instances when we deal with them, we need a function
+# that draws the output from those two parameters. The function inserts the tetromino, draws the playfield and then
+# removes the tetromino.
+function draw_state(playfield, tetromino){
+	insert_tetromino(playfield,tetromino);
+
 	canvas.setFillColor(0,0,0);
 	canvas.clear();
-
-	insert_tetromino(playfield, "o", 0, 4, i);
 
 	# draw the entire playfield
 	for var i in 0:playfield.size() do
 		for var j in 0:playfield[i].size() do
 			if(playfield[i][j] != 0) then draw_block(j, i, playfield[i][j]);
+	remove_tetromino(playfield, tetromino);
+}
 
-	wait(1000);
+# This function moves a tetromino horizontally if possible.
+function move_tetromino(playfield, tetromino, direction){
+	tetromino.column += direction;
+	if check_collision(playfield, tetromino) then {
+		tetromino.column -= direction;
+	}
+	return tetromino;
+}
 
-    # Remove the tetromino so in the next iteration we can insert the tetromino with a different position
-	remove_tetromino(playfield, "o", 0, 4, i);
+# This function rotates the tetromino if possible.
+function rotate_tetromino(playfield, tetromino, direction){
+	tetromino.rotation = (tetromino.rotation + direction) % tetromino.max_rotations;
+	if check_collision(playfield, tetromino) then {
+		tetromino.rotation = (tetromino.rotation - direction) % tetromino.max_rotations;
+	}
+	return tetromino;
+}
 
-   # Since the loop runs indefinitely we break free from it once we detect a collision
-	if check_collision(playfield, "o", 0, 4, i+1) == true then{
-    		insert_tetromino(playfield, "o", 0, 4, i);
-    	 	break;
-    	}
+# This function drops the tetromino one row down if possible and throws an exception else.
+function drop_tetromino(playfield, tetromino){
+	tetromino.row += 1;
+	if check_collision(playfield, tetromino) then {
+		tetromino.row -= 1;
+		throw "collision";
+	}
+}
 
-    i += 1;
+# This function inserts a tetromino into the playfield and lets it drop until
+# the tetromino becomes part of the playfield state.
+function play_tetromino(playfield, tetromino){
+    # check if it is possible to insert a tetromino into the game
+	if check_collision(playfield, tetromino) then throw "game_lost";
+
+	# the main loop of drawing the state, dropping the tetromino
+	# and putting time between the drops.
+	while true do {
+		draw_state(playfield, tetromino);
+
+		rotate_tetromino(playfield, tetromino, 1);
+		draw_state(playfield, tetromino);
+
+		try {
+			drop_tetromino(playfield, tetromino);
+		}
+		catch var exception do {
+			insert_tetromino(playfield, tetromino);
+			break;
+		}
+		wait(100);
+	}
+}
+
+# This is the entrypoint for the application. We fill the tetromino pool
+# and play every tetromino once. This is repeated until the game is lost.
+var game_lost = false;
+while not game_lost do {
+	var tetromino_pool = fill_random_array();
+	for var type in tetromino_pool do {
+		var tetromino = Tetromino(type);
+		try play_tetromino(playfield, tetromino);
+		catch var exception do {
+			game_lost = true;
+			print("You lost the game!");
+			break;
+		}
+	}
 }
