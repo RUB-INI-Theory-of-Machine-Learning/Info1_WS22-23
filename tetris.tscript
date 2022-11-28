@@ -282,44 +282,102 @@ function drop_tetromino(playfield, tetromino){
 		throw "collision";
 	}
 }
+# This function finds full rows in the playfield and returns
+# an array with their indexes
+function full_rows(playfield){
+	var full_rows = [];
+	for var row in 1:playfield.size()-1 do {
+		var current_row = playfield.size() - row - 1;
 
-# This function inserts a tetromino into the playfield and lets it drop until
-# the tetromino becomes part of the playfield state.
-function play_tetromino(playfield, tetromino){
-    # check if it is possible to insert a tetromino into the game
-	if check_collision(playfield, tetromino) then throw "game_lost";
-
-	# the main loop of drawing the state, dropping the tetromino
-	# and putting time between the drops.
-	while true do {
-		draw_state(playfield, tetromino);
-
-		rotate_tetromino(playfield, tetromino, 1);
-		draw_state(playfield, tetromino);
-
-		try {
-			drop_tetromino(playfield, tetromino);
+		var is_full = true;
+		for var column in 0:playfield[current_row].size() do {
+			if playfield[current_row][column] == 0 then {
+				is_full = false;
+				break;
+			}
 		}
-		catch var exception do {
-			insert_tetromino(playfield, tetromino);
-			break;
-		}
-		wait(100);
+		if is_full then full_rows.push(current_row);
+	}
+	return full_rows;
+}
+
+# This function removes rows from the playfield without
+# changing the size of the playfield.
+function clear_rows(playfield, rows_to_clear){
+	for var row_idx in rows_to_clear do {
+		playfield.remove(row_idx);
+		var row = [];
+		for 0:frame do row.push("f");
+		for 0:blocks_x do row.push(0);
+		for 0:frame do row.push("f");
+		playfield.insert(1, row);
 	}
 }
 
-# This is the entrypoint for the application. We fill the tetromino pool
-# and play every tetromino once. This is repeated until the game is lost.
-var game_lost = false;
-while not game_lost do {
-	var tetromino_pool = fill_random_array();
-	for var type in tetromino_pool do {
-		var tetromino = Tetromino(type);
-		try play_tetromino(playfield, tetromino);
-		catch var exception do {
-			game_lost = true;
-			print("You lost the game!");
-			break;
+var tetromino_pool =[];
+var tetromino = null;
+var counter = 0;
+
+# The timer event handler is where the main functionality of the program is executed.
+# Here the current Tetromino is dropped, made part of the state if necessary and new
+# tetrominos are inserted, as well as the tetromino pool refilled.
+setEventHandler("timer", function(event){
+	# To ensure that the drop does not happen every time the timer is called
+	# we establish a counter that makes the functionality only get executed
+	# every 20th time.
+	if counter == 20 then {
+		if tetromino != null then {
+		    # We try to drop the tetromino
+			try {
+				drop_tetromino(playfield, tetromino);
+				draw_state(playfield, tetromino);
+			}
+			# If dropping is now possible then the tetromino is
+			# set into the game state and we set the tetromino variable
+			# to null so the next round of execution knows that we have
+			# to initialize as new one.
+			catch var exception do {
+				insert_tetromino(playfield, tetromino);
+				tetromino = null;
+			}
 		}
+		else {
+		    # We clear rows that are full when the old tetromino has settled
+			clear_rows(playfield, full_rows(playfield));
+
+			# refill the pool if it is empty
+			if tetromino_pool.size() == 0 then {
+				tetromino_pool = fill_random_array();
+			}
+
+			# Instantiate a new tetromino object
+			tetromino = Tetromino(tetromino_pool.pop());
+
+			# if the tetromino has a collision right away, the
+			# game is lost and we leave the event mode as well
+			# as the execution of this function
+			if check_collision(playfield, tetromino) then {
+				quitEventMode();
+				return;
+			}
+			# We draw the state
+			draw_state(playfield, tetromino);
+		}
+		counter = 0;
 	}
-}
+	counter += 1;
+});
+
+# These event handlers are used for playing the game.
+setEventHandler("canvas.keydown", function(event){
+	if tetromino != null then {
+		if event.key == "ArrowLeft" then move_tetromino(playfield, tetromino, -1);
+		if event.key == "ArrowRight" then move_tetromino(playfield, tetromino, 1);
+		if event.key == "ArrowUp" then rotate_tetromino(playfield, tetromino, 1);
+		if event.key == "ArrowDown" then rotate_tetromino(playfield, tetromino, -1);
+		draw_state(playfield, tetromino);
+	}
+});
+
+# This is now the entrypoint of the program.
+enterEventMode();
